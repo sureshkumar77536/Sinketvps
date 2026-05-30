@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SinketVPS Terminal</title>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+<style>
+  :root{
+    --accent:#19e3ff;
+    --accent2:#0a84ff;
+    --bg:#08090b;
+    --panel:#0d0f12;
+    --kb-h:50px;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent;
+     -webkit-touch-callout:none; }
+  html,body{ height:100%; overflow:hidden; background:#000;
+     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif; }
+
+  /* ===== App window ===== */
+  #app{
+    height:100dvh; display:flex; flex-direction:column;
+    background:radial-gradient(120% 80% at 50% 0%, #15181d 0%, #08090b 55%, #050607 100%);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+
+  /* ===== Title bar ===== */
+  .titlebar{
+    height:46px; min-height:46px; display:flex; align-items:center; gap:10px;
+    padding:0 12px; position:relative; user-select:none;
+    background:linear-gradient(180deg, rgba(38,41,47,.95), rgba(18,20,23,.95));
+    border-bottom:1px solid rgba(0,0,0,.8);
+    box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 6px 18px rgba(0,0,0,.5);
+  }
+  .traffic{ display:flex; gap:9px; align-items:center; z-index:3; }
+  .light{ width:13px;height:13px;border-radius:50%; position:relative; cursor:pointer;
+          box-shadow:0 1px 2px rgba(0,0,0,.6); }
+  .light::after{ content:""; position:absolute; top:2px; left:2.5px; width:5px; height:4px;
+                 border-radius:50%; background:rgba(255,255,255,.5); filter:blur(.4px); }
+  .close{background:radial-gradient(circle at 35% 30%, #ff8a82, #ff5f56);}
+  .min{background:radial-gradient(circle at 35% 30%, #ffd479, #ffbd2e);}
+  .full{background:radial-gradient(circle at 35% 30%, #74e98a, #27c93f);}
+
+  .title{ position:absolute; left:0; right:0; text-align:center; pointer-events:none;
+          font-size:13px; font-weight:600; letter-spacing:.4px; color:#aeb3ba; }
+  .title .acc{ color:var(--accent); text-shadow:0 0 10px rgba(25,227,255,.5); }
+
+  .winbtns{ margin-left:auto; display:flex; gap:7px; align-items:center; z-index:3; }
+
+  .gbtn{
+    height:30px; min-width:30px; padding:0 9px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:5px;
+    border:1px solid rgba(255,255,255,.08); border-radius:9px;
+    color:#d6dbe1; font-size:14px; text-decoration:none;
+    background:linear-gradient(180deg, #1a1d21, #0c0e10);
+    box-shadow:0 1px 0 rgba(255,255,255,.10) inset, 0 -2px 5px rgba(0,0,0,.5) inset,
+               0 4px 10px rgba(0,0,0,.5);
+    transition:transform .1s, box-shadow .2s, border-color .2s;
+  }
+  .gbtn:hover{ border-color:rgba(25,227,255,.4);
+    box-shadow:0 1px 0 rgba(255,255,255,.10) inset, 0 -2px 5px rgba(0,0,0,.5) inset,
+               0 4px 10px rgba(0,0,0,.5), 0 0 16px rgba(25,227,255,.22); }
+  .gbtn:active{ transform:translateY(1px) scale(.97); }
+  .zoom{ display:flex; gap:2px; }
+  .zoom .gbtn{ min-width:30px; padding:0; font-size:17px; }
+
+  /* ===== Tab bar ===== */
+  .tabbar{
+    display:flex; align-items:center; gap:6px; padding:7px 8px;
+    background:linear-gradient(180deg, rgba(16,18,21,.95), rgba(9,10,12,.95));
+    border-bottom:1px solid rgba(0,0,0,.8);
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset;
+    overflow-x:auto; min-height:46px; scrollbar-width:none;
+  }
+  .tabbar::-webkit-scrollbar{ display:none; }
+  .tab{
+    display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer;
+    border:1px solid rgba(255,255,255,.06); border-radius:10px;
+    color:#878d95; font-size:13px; white-space:nowrap; max-width:170px; flex:0 0 auto;
+    background:linear-gradient(180deg, #131619, #0b0d0f);
+    box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 3px 8px rgba(0,0,0,.4);
+    transition:color .2s, border-color .2s, box-shadow .25s, transform .1s;
+    position:relative; overflow:hidden;
+  }
+  .tab:active{ transform:scale(.98); }
+  .tab .led{ width:7px; height:7px; border-radius:50%; background:#3a3f45;
+             box-shadow:0 0 0 rgba(25,227,255,0); transition:.25s; flex:0 0 auto; }
+  .tab .tname{ overflow:hidden; text-overflow:ellipsis; max-width:96px; }
+  .tab .x{ width:18px;height:18px; border-radius:50%; display:flex; align-items:center;
+           justify-content:center; font-size:14px; color:#6b7077; flex:0 0 auto; }
+  .tab .x:hover{ background:rgba(255,95,86,.25); color:#ff5f56; }
+  .tab.active{
+    color:#fff; border-color:rgba(25,227,255,.45);
+    background:linear-gradient(180deg, #1a1f24, #0e1114);
+    box-shadow:0 1px 0 rgba(255,255,255,.10) inset, 0 4px 14px rgba(0,0,0,.5),
+               0 0 18px rgba(25,227,255,.20);
+  }
+  .tab.active .led{ background:var(--accent); box-shadow:0 0 10px rgba(25,227,255,.9); }
+  .addtab{
+    flex:0 0 auto; width:38px; height:38px; cursor:pointer; font-size:22px; font-weight:300;
+    display:flex; align-items:center; justify-content:center; color:var(--accent);
+    border:1px solid rgba(25,227,255,.25); border-radius:10px;
+    background:linear-gradient(180deg, #121519, #0a0c0e);
+    box-shadow:0 1px 0 rgba(255,255,255,.08) inset, 0 4px 10px rgba(0,0,0,.5),
+               0 0 14px rgba(25,227,255,.12);
+    transition:transform .1s, box-shadow .2s;
+  }
+  .addtab:hover{ box-shadow:0 1px 0 rgba(255,255,255,.08) inset, 0 4px 10px rgba(0,0,0,.5),
+                 0 0 20px rgba(25,227,255,.3); }
+  .addtab:active{ transform:scale(.92); }
+
+  /* ===== Terminal area ===== */
+  .termwrap{ flex:1; position:relative; overflow:hidden;
+    background:linear-gradient(180deg, #0a0c0e, #060708);
+    box-shadow:0 10px 40px rgba(0,0,0,.6) inset; }
+  .terminal-instance{ position:absolute; inset:0; display:none; padding:10px 6px 4px 10px; }
+  .terminal-instance.active{ display:block; }
+  /* subtle top inner glow line */
+  .termwrap::before{ content:""; position:absolute; top:0; left:0; right:0; height:1px;
+    background:linear-gradient(90deg, transparent, rgba(25,227,255,.35), transparent); z-index:5; }
+
+  /* ===== Mobile control key bar ===== */
+  #keybar{
+    display:flex; gap:6px; padding:8px; min-height:var(--kb-h);
+    background:linear-gradient(180deg, #14171b, #0a0c0e);
+    border-top:1px solid rgba(0,0,0,.9);
+    box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 -6px 18px rgba(0,0,0,.5);
+    overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  }
+  #keybar::-webkit-scrollbar{ display:none; }
+  .kb{
+    flex:0 0 auto; min-width:46px; height:38px; padding:0 13px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    border:1px solid rgba(255,255,255,.08); border-radius:10px;
+    color:#dfe4ea; font-size:13.5px; font-weight:600;
+    background:linear-gradient(180deg, #1b1f24, #0d0f12);
+    box-shadow:0 1px 0 rgba(255,255,255,.12) inset, 0 -2px 5px rgba(0,0,0,.55) inset,
+               0 4px 10px rgba(0,0,0,.5);
+    transition:transform .08s, box-shadow .2s, border-color .2s, color .2s;
+  }
+  .kb:active{ transform:translateY(1px) scale(.96);
+    box-shadow:0 2px 6px rgba(0,0,0,.6) inset; color:#fff; border-color:rgba(25,227,255,.5); }
+  .kb.toggled{
+    color:#001417; border-color:rgba(25,227,255,.7);
+    background:linear-gradient(180deg, #5cf0ff, #19e3ff);
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset, 0 0 18px rgba(25,227,255,.6),
+               0 4px 10px rgba(0,0,0,.5);
+  }
+  .kb.wide{ min-width:58px; }
+  .kb .sym{ font-size:15px; }
+
+  #hiddenInput{ position:absolute; opacity:0; height:1px; width:1px; left:-100px; border:none; outline:none; }
+
+  /* ===== Toast ===== */
+  #toast{ position:fixed; bottom:84px; left:50%; transform:translateX(-50%) translateY(8px);
+    background:linear-gradient(180deg, rgba(20,23,27,.96), rgba(10,11,13,.96));
+    color:#eafcff; padding:10px 18px; border-radius:24px; font-size:13px; font-weight:500;
+    border:1px solid rgba(25,227,255,.3);
+    box-shadow:0 8px 24px rgba(0,0,0,.6), 0 0 20px rgba(25,227,255,.2);
+    opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; z-index:99; }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="traffic">
+      <span class="light close" id="lightClose"></span>
+      <span class="light min"></span>
+      <span class="light full" id="lightFull"></span>
+    </div>
+    <div class="title"><span class="acc">●</span>&nbsp; sinket — bash — <span id="dims">80×24</span></div>
+    <div class="winbtns">
+      <div class="zoom">
+        <button class="gbtn" id="zoomOut">−</button>
+        <button class="gbtn" id="zoomIn">+</button>
+      </div>
+      <button class="gbtn" id="copyBtn" title="Copy selection">⧉</button>
+      <button class="gbtn" id="pasteBtn" title="Paste">📋</button>
+      <a href="/logout" class="gbtn" title="Logout">⏻</a>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabbar" id="tabbar">
+    <div class="addtab" id="addtab">＋</div>
+  </div>
+
+  <!-- Terminals -->
+  <div class="termwrap" id="termwrap"></div>
+
+  <!-- Mobile control-key bar -->
+  <div id="keybar">
+    <button class="kb" data-key="Escape">esc</button>
+    <button class="kb toggle wide" data-toggle="ctrl">ctrl</button>
+    <button class="kb toggle wide" data-toggle="alt">alt</button>
+    <button class="kb" data-key="Tab"><span class="sym">⇥</span></button>
+    <button class="kb" data-text="/">/</button>
+    <button class="kb" data-text="-">-</button>
+    <button class="kb" data-text="|">|</button>
+    <button class="kb" data-text="~">~</button>
+    <button class="kb" data-key="ArrowUp"><span class="sym">↑</span></button>
+    <button class="kb" data-key="ArrowDown"><span class="sym">↓</span></button>
+    <button class="kb" data-key="ArrowLeft"><span class="sym">←</span></button>
+    <button class="kb" data-key="ArrowRight"><span class="sym">→</span></button>
+    <button class="kb" data-key="Home">home</button>
+    <button class="kb" data-key="End">end</button>
+    <button class="kb" data-text="	">tab↹</button>
+  </div>
+</div>
+
+<input id="hiddenInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
